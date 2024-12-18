@@ -1,0 +1,940 @@
+=================  nodejs crud with postgresql =====================
+// npm install express pg body-parser
+
+const express = require('express');
+const { Pool } = require('pg');
+const bodyParser = require('body-parser');
+
+const app = express();
+const port = 3000;
+
+// PostgreSQL connection pool setup
+const pool = new Pool({
+  host: 'localhost',
+  port: 5432,
+  user: 'yourusername', // Replace with your PostgreSQL username
+  password: 'yourpassword', // Replace with your PostgreSQL password
+  database: 'node_crud', // Replace with your database name
+  max: 20, // Max number of clients in the pool
+  idleTimeoutMillis: 30000, // Timeout for idle clients in the pool
+  connectionTimeoutMillis: 2000, // Timeout for new connections
+});
+
+// Middleware
+app.use(bodyParser.json());
+
+// CREATE: Add a new user
+app.post('/users', async (req, res) => {
+  const { name, email } = req.body;
+  try {
+    const result = await pool.query('INSERT INTO users (name, email) VALUES ($1, $2) RETURNING *', [name, email]);
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('Error creating user:', err);
+    res.status(500).send('Server error');
+  }
+});
+
+// READ: Get all users
+app.get('/users', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM users');
+    res.status(200).json(result.rows);
+  } catch (err) {
+    console.error('Error getting users:', err);
+    res.status(500).send('Server error');
+  }
+});
+
+// READ: Get a single user by ID
+app.get('/users/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).send('User not found');
+    }
+    res.status(200).json(result.rows[0]);
+  } catch (err) {
+    console.error('Error getting user:', err);
+    res.status(500).send('Server error');
+  }
+});
+
+// UPDATE: Update a user's information
+app.put('/users/:id', async (req, res) => {
+  const { id } = req.params;
+  const { name, email } = req.body;
+  try {
+    const result = await pool.query('UPDATE users SET name = $1, email = $2 WHERE id = $3 RETURNING *', [name, email, id]);
+    if (result.rows.length === 0) {
+      return res.status(404).send('User not found');
+    }
+    res.status(200).json(result.rows[0]);
+  } catch (err) {
+    console.error('Error updating user:', err);
+    res.status(500).send('Server error');
+  }
+});
+
+// DELETE: Delete a user
+app.delete('/users/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query('DELETE FROM users WHERE id = $1 RETURNING *', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).send('User not found');
+    }
+    res.status(200).json({ message: 'User deleted successfully' });
+  } catch (err) {
+    console.error('Error deleting user:', err);
+    res.status(500).send('Server error');
+  }
+});
+
+// Start server
+app.listen(port, () => {
+  console.log(`Server is running on http://localhost:${port}`);
+});
+
+======= nodejs crud with sequelize postgresql =============================
+// npm install express sequelize pg pg-hstore body-parser
+
+const { Sequelize } = require('sequelize');
+// Create a new Sequelize instance with PostgreSQL connection details
+const sequelize = new Sequelize('yourdbname', 'yourusername', 'yourpassword', {
+  host: 'localhost',
+  dialect: 'postgres',
+})
+
+const { DataTypes } = require('sequelize');
+// Define the User model
+const User = sequelize.define('User', {
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  email: {
+    type: DataTypes.STRING,
+    unique: true,
+    allowNull: false,
+  },
+}, {
+  timestamps: true,
+});
+
+
+const express = require('express');
+const bodyParser = require('body-parser');
+const app = express();
+const port = 3000;
+
+// Middleware
+app.use(bodyParser.json());
+
+// Sync the database (create tables if they don't exist)
+sequelize.sync({ force: false }).then(() => {
+  console.log('Database synced');
+});
+
+// CREATE: Add a new user
+app.post('/users', async (req, res) => {
+  const { name, email } = req.body;
+  try {
+    const user = await User.create({ name, email });
+    res.status(201).json(user);
+  } catch (err) {
+    console.error('Error creating user:', err);
+    res.status(500).send('Server error');
+  }
+});
+
+// READ: Get all users
+app.get('/users', async (req, res) => {
+  try {
+    const users = await User.findAll();
+    res.status(200).json(users);
+  } catch (err) {
+    console.error('Error getting users:', err);
+    res.status(500).send('Server error');
+  }
+});
+
+// READ: Get a user by ID
+app.get('/users/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const user = await User.findByPk(id);
+    if (!user) {
+      return res.status(404).send('User not found');
+    }
+    res.status(200).json(user);
+  } catch (err) {
+    console.error('Error getting user:', err);
+    res.status(500).send('Server error');
+  }
+});
+
+// UPDATE: Update a user's information
+app.put('/users/:id', async (req, res) => {
+  const { id } = req.params;
+  const { name, email } = req.body;
+  try {
+    const user = await User.findByPk(id);
+    if (!user) {
+      return res.status(404).send('User not found');
+    }
+    user.name = name || user.name;
+    user.email = email || user.email;
+    await user.save();
+    res.status(200).json(user);
+  } catch (err) {
+    console.error('Error updating user:', err);
+    res.status(500).send('Server error');
+  }
+});
+
+// DELETE: Delete a user
+app.delete('/users/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const user = await User.findByPk(id);
+    if (!user) {
+      return res.status(404).send('User not found');
+    }
+    await user.destroy();
+    res.status(200).json({ message: 'User deleted successfully' });
+  } catch (err) {
+    console.error('Error deleting user:', err);
+    res.status(500).send('Server error');
+  }
+});
+
+// Start server
+app.listen(port, () => {
+  console.log(`Server is running on http://localhost:${port}`);
+});
+
+
+======== nodejs crud with mysql ===================
+// npm install express mysql2 body-parser
+3. Create the MySQL Database Connection
+const mysql = require('mysql2');
+
+// Create a MySQL connection pool
+const pool = mysql.createPool({
+  host: 'localhost',        // MySQL host
+  user: 'root',             // MySQL username
+  password: 'yourpassword', // MySQL password
+  database: 'node_crud',    // Database name
+});
+
+module.exports = pool.promise(); // Using promise API for async/await
+
+4. Set Up Express and CRUD Routes
+const express = require('express');
+const bodyParser = require('body-parser');
+const pool = require('./config/database');
+
+const app = express();
+const port = 3000;
+
+// Middleware
+app.use(bodyParser.json());
+
+// CREATE: Add a new user
+app.post('/users', async (req, res) => {
+  const { name, email } = req.body;
+  try {
+    const [result] = await pool.execute(
+      'INSERT INTO users (name, email) VALUES (?, ?)',
+      [name, email]
+    );
+    res.status(201).json({ id: result.insertId, name, email });
+  } catch (err) {
+    console.error('Error creating user:', err);
+    res.status(500).send('Server error');
+  }
+});
+
+// READ: Get all users
+app.get('/users', async (req, res) => {
+  try {
+    const [rows] = await pool.execute('SELECT * FROM users');
+    res.status(200).json(rows);
+  } catch (err) {
+    console.error('Error getting users:', err);
+    res.status(500).send('Server error');
+  }
+});
+
+// READ: Get a user by ID
+app.get('/users/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [rows] = await pool.execute('SELECT * FROM users WHERE id = ?', [id]);
+    if (rows.length === 0) {
+      return res.status(404).send('User not found');
+    }
+    res.status(200).json(rows[0]);
+  } catch (err) {
+    console.error('Error getting user:', err);
+    res.status(500).send('Server error');
+  }
+});
+
+// UPDATE: Update a user's information
+app.put('/users/:id', async (req, res) => {
+  const { id } = req.params;
+  const { name, email } = req.body;
+  try {
+    const [result] = await pool.execute(
+      'UPDATE users SET name = ?, email = ? WHERE id = ?',
+      [name, email, id]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(404).send('User not found');
+    }
+    res.status(200).json({ id, name, email });
+  } catch (err) {
+    console.error('Error updating user:', err);
+    res.status(500).send('Server error');
+  }
+});
+
+// DELETE: Delete a user
+app.delete('/users/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [result] = await pool.execute('DELETE FROM users WHERE id = ?', [id]);
+    if (result.affectedRows === 0) {
+      return res.status(404).send('User not found');
+    }
+    res.status(200).json({ message: 'User deleted successfully' });
+  } catch (err) {
+    console.error('Error deleting user:', err);
+    res.status(500).send('Server error');
+  }
+});
+
+// Start the server
+app.listen(port, () => {
+  console.log(`Server is running on http://localhost:${port}`);
+});
+
+
+============== nodejs crud with mongoose ================
+// npm install express mongoose body-parser
+3. Set Up Mongoose
+const mongoose = require('mongoose');
+
+// Connect to MongoDB (either local or via MongoDB Atlas)
+mongoose.connect('mongodb://localhost:27017/node_crud', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+})
+.then(() => console.log('Connected to MongoDB'))
+.catch(err => console.error('Could not connect to MongoDB', err));
+
+4. Create the User Model
+const mongoose = require('mongoose');
+// Define the schema for the user
+const userSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true,
+  },
+  email: {
+    type: String,
+    required: true,
+    unique: true,
+  },
+});
+
+// Create a User model using the schema
+const User = mongoose.model('User', userSchema);
+module.exports = User;
+
+
+5. Set Up Express and CRUD Routes
+const express = require('express');
+const bodyParser = require('body-parser');
+const mongoose = require('mongoose');
+const User = require('./models/User');
+
+const app = express();
+const port = 3000;
+
+// Middleware
+app.use(bodyParser.json());
+
+// Connect to MongoDB
+require('./config/database');
+
+// CREATE: Add a new user
+app.post('/users', async (req, res) => {
+  const { name, email } = req.body;
+  try {
+    const user = new User({ name, email });
+    await user.save();
+    res.status(201).json(user);
+  } catch (err) {
+    console.error('Error creating user:', err);
+    res.status(500).send('Server error');
+  }
+});
+
+// READ: Get all users
+app.get('/users', async (req, res) => {
+  try {
+    const users = await User.find();
+    res.status(200).json(users);
+  } catch (err) {
+    console.error('Error getting users:', err);
+    res.status(500).send('Server error');
+  }
+});
+
+// READ: Get a user by ID
+app.get('/users/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).send('User not found');
+    }
+    res.status(200).json(user);
+  } catch (err) {
+    console.error('Error getting user:', err);
+    res.status(500).send('Server error');
+  }
+});
+
+// UPDATE: Update a user's information
+app.put('/users/:id', async (req, res) => {
+  const { id } = req.params;
+  const { name, email } = req.body;
+  try {
+    const user = await User.findByIdAndUpdate(id, { name, email }, { new: true });
+    if (!user) {
+      return res.status(404).send('User not found');
+    }
+    res.status(200).json(user);
+  } catch (err) {
+    console.error('Error updating user:', err);
+    res.status(500).send('Server error');
+  }
+});
+
+// DELETE: Delete a user
+app.delete('/users/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const user = await User.findByIdAndDelete(id);
+    if (!user) {
+      return res.status(404).send('User not found');
+    }
+    res.status(200).json({ message: 'User deleted successfully' });
+  } catch (err) {
+    console.error('Error deleting user:', err);
+    res.status(500).send('Server error');
+  }
+});
+
+// Start the server
+app.listen(port, () => {
+  console.log(`Server is running on http://localhost:${port}`);
+});
+
+======= nodejs Todo App with reactjs ==============
+// server.js
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+require('dotenv').config();
+
+// Initialize app
+const app = express();
+const port = process.env.PORT || 5000;
+
+// Middleware
+app.use(cors());
+app.use(express.json()); // To parse incoming JSON requests
+
+// MongoDB connection
+mongoose.connect(process.env.MONGODB_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+})
+  .then(() => console.log("MongoDB connected"))
+  .catch(err => console.log("Error connecting to MongoDB:", err));
+
+// Todo model
+const Todo = mongoose.model('Todo', new mongoose.Schema({
+  text: { type: String, required: true },
+  completed: { type: Boolean, default: false },
+}));
+
+// CRUD Routes
+
+// CREATE: Add a new todo
+app.post('/todos', async (req, res) => {
+  const { text } = req.body;
+  try {
+    const newTodo = new Todo({
+      text,
+      completed: false,
+    });
+    await newTodo.save();
+    res.status(201).json(newTodo);
+  } catch (error) {
+    res.status(400).json({ message: "Error creating todo", error });
+  }
+});
+
+// READ: Get all todos
+app.get('/todos', async (req, res) => {
+  try {
+    const todos = await Todo.find();
+    res.status(200).json(todos);
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching todos", error });
+  }
+});
+
+// UPDATE: Update a todo
+app.put('/todos/:id', async (req, res) => {
+  const { id } = req.params;
+  const { text, completed } = req.body;
+  try {
+    const updatedTodo = await Todo.findByIdAndUpdate(id, { text, completed }, { new: true });
+    if (!updatedTodo) return res.status(404).json({ message: "Todo not found" });
+    res.status(200).json(updatedTodo);
+  } catch (error) {
+    res.status(400).json({ message: "Error updating todo", error });
+  }
+});
+
+// DELETE: Delete a todo
+app.delete('/todos/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const deletedTodo = await Todo.findByIdAndDelete(id);
+    if (!deletedTodo) return res.status(404).json({ message: "Todo not found" });
+    res.status(200).json({ message: "Todo deleted successfully" });
+  } catch (error) {
+    res.status(400).json({ message: "Error deleting todo", error });
+  }
+});
+
+// Start the server
+app.listen(port, () => {
+  console.log(`Backend is running on http://localhost:${port}`);
+});
+
+
+// Frontend: React.js
+// npm install axios
+// Modify src/App.js to interact with the backend
+// src/App.js
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+
+// URL of the backend API
+const API_URL = 'http://localhost:5000/todos';
+
+const App = () => {
+  const [todos, setTodos] = useState([]);
+  const [todoText, setTodoText] = useState('');
+
+  // Fetch todos from the backend
+  useEffect(() => {
+    const fetchTodos = async () => {
+      try {
+        const response = await axios.get(API_URL);
+        setTodos(response.data);
+      } catch (error) {
+        console.error('Error fetching todos:', error);
+      }
+    };
+
+    fetchTodos();
+  }, []);
+
+  // Create a new todo
+  const createTodo = async () => {
+    if (!todoText) return;
+
+    try {
+      const newTodo = await axios.post(API_URL, { text: todoText });
+      setTodos([...todos, newTodo.data]);
+      setTodoText('');
+    } catch (error) {
+      console.error('Error creating todo:', error);
+    }
+  };
+
+  // Toggle todo completion status
+  const toggleTodo = async (id, completed) => {
+    try {
+      const updatedTodo = await axios.put(`${API_URL}/${id}`, {
+        completed: !completed,
+      });
+      setTodos(
+        todos.map((todo) =>
+          todo._id === id ? updatedTodo.data : todo
+        )
+      );
+    } catch (error) {
+      console.error('Error updating todo:', error);
+    }
+  };
+
+  // Delete a todo
+  const deleteTodo = async (id) => {
+    try {
+      await axios.delete(`${API_URL}/${id}`);
+      setTodos(todos.filter((todo) => todo._id !== id));
+    } catch (error) {
+      console.error('Error deleting todo:', error);
+    }
+  };
+
+  return (
+    <div className="App">
+      <h1>Todo App</h1>
+      <div>
+        <input
+          type="text"
+          value={todoText}
+          onChange={(e) => setTodoText(e.target.value)}
+          placeholder="Enter a new todo"
+        />
+        <button onClick={createTodo}>Add Todo</button>
+      </div>
+      <ul>
+        {todos.map((todo) => (
+          <li key={todo._id}>
+            <span
+              style={{
+                textDecoration: todo.completed ? 'line-through' : 'none',
+              }}
+            >
+              {todo.text}
+            </span>
+            <button onClick={() => toggleTodo(todo._id, todo.completed)}>
+              {todo.completed ? 'Undo' : 'Complete'}
+            </button>
+            <button onClick={() => deleteTodo(todo._id)}>Delete</button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+
+export default App;
+
+================ reactjs crud ===============
+// npx create-react-app react-crud
+// cd react-crud
+// npm install axios
+// modify src/app.js
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+
+// Define the base URL for the API
+const API_URL = "https://jsonplaceholder.typicode.com/users";
+
+const App = () => {
+  // States to store user data and form input
+  const [users, setUsers] = useState([]);
+  const [formData, setFormData] = useState({
+    id: null,
+    name: "",
+    email: "",
+  });
+
+  // Fetch users from API
+  const fetchUsers = async () => {
+    try {
+      const response = await axios.get(API_URL);
+      setUsers(response.data);
+    } catch (error) {
+      console.error("There was an error fetching the users!", error);
+    }
+  };
+
+  // Handle form input changes
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prevData) => ({
+      ...prevData,
+      [name]: value,
+    }));
+  };
+
+  // Create a new user
+  const createUser = async (e) => {
+    e.preventDefault();
+    try {
+      const response = await axios.post(API_URL, formData);
+      setUsers([...users, response.data]);
+      setFormData({ id: null, name: "", email: "" });
+    } catch (error) {
+      console.error("There was an error creating the user!", error);
+    }
+  };
+
+  // Edit an existing user
+  const editUser = (user) => {
+    setFormData({ id: user.id, name: user.name, email: user.email });
+  };
+
+  // Update the user
+  const updateUser = async (e) => {
+    e.preventDefault();
+    try {
+      const response = await axios.put(`${API_URL}/${formData.id}`, formData);
+      setUsers(
+        users.map((user) => (user.id === formData.id ? response.data : user))
+      );
+      setFormData({ id: null, name: "", email: "" });
+    } catch (error) {
+      console.error("There was an error updating the user!", error);
+    }
+  };
+
+  // Delete a user
+  const deleteUser = async (id) => {
+    try {
+      await axios.delete(`${API_URL}/${id}`);
+      setUsers(users.filter((user) => user.id !== id));
+    } catch (error) {
+      console.error("There was an error deleting the user!", error);
+    }
+  };
+
+  // Fetch users when the component mounts
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  return (
+    <div>
+      <h1>React CRUD Example</h1>
+      <form onSubmit={formData.id ? updateUser : createUser}>
+        <input
+          type="text"
+          name="name"
+          placeholder="Name"
+          value={formData.name}
+          onChange={handleInputChange}
+          required
+        />
+        <input
+          type="email"
+          name="email"
+          placeholder="Email"
+          value={formData.email}
+          onChange={handleInputChange}
+          required
+        />
+        <button type="submit">{formData.id ? "Update" : "Add"} User</button>
+      </form>
+
+      <h2>Users</h2>
+      <ul>
+        {users.map((user) => (
+          <li key={user.id}>
+            <span>{user.name} ({user.email})</span>
+            <button onClick={() => editUser(user)}>Edit</button>
+            <button onClick={() => deleteUser(user.id)}>Delete</button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+
+export default App;
+
+======= angular crud ====================
+// ng new angular-crud
+// cd angular-crud
+// npm install axios
+// ng generate service user
+// modify src/app/user.service.ts
+import { Injectable } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Observable } from 'rxjs';
+
+// Define user interface (model)
+export interface User {
+  id?: number;
+  name: string;
+  email: string;
+}
+
+@Injectable({
+  providedIn: 'root',
+})
+export class UserService {
+  private apiUrl = 'https://jsonplaceholder.typicode.com/users';
+
+  constructor(private http: HttpClient) {}
+
+  // Get all users
+  getUsers(): Observable<User[]> {
+    return this.http.get<User[]>(this.apiUrl);
+  }
+
+  // Create a new user
+  createUser(user: User): Observable<User> {
+    return this.http.post<User>(this.apiUrl, user);
+  }
+
+  // Update an existing user
+  updateUser(user: User): Observable<User> {
+    return this.http.put<User>(`${this.apiUrl}/${user.id}`, user);
+  }
+
+  // Delete a user
+  deleteUser(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.apiUrl}/${id}`);
+  }
+}
+
+//Create the CRUD Component
+// ng generate component user
+// modify src/app/user/user.component.ts
+import { Component, OnInit } from '@angular/core';
+import { UserService, User } from '../user.service';
+
+@Component({
+  selector: 'app-user',
+  templateUrl: './user.component.html',
+  styleUrls: ['./user.component.css'],
+})
+export class UserComponent implements OnInit {
+  users: User[] = [];
+  currentUser: User = { name: '', email: '' };
+  isEditing = false;
+
+  constructor(private userService: UserService) {}
+
+  ngOnInit(): void {
+    this.loadUsers();
+  }
+
+  // Fetch all users from the API
+  loadUsers(): void {
+    this.userService.getUsers().subscribe((users) => {
+      this.users = users;
+    });
+  }
+
+  // Create a new user
+  addUser(): void {
+    this.userService.createUser(this.currentUser).subscribe((newUser) => {
+      this.users.push(newUser);
+      this.currentUser = { name: '', email: '' };
+    });
+  }
+
+  // Edit an existing user
+  editUser(user: User): void {
+    this.currentUser = { ...user };
+    this.isEditing = true;
+  }
+
+  // Update the user
+  updateUser(): void {
+    this.userService.updateUser(this.currentUser).subscribe(() => {
+      const index = this.users.findIndex((user) => user.id === this.currentUser.id);
+      if (index !== -1) {
+        this.users[index] = this.currentUser;
+      }
+      this.cancelEdit();
+    });
+  }
+
+  // Cancel editing
+  cancelEdit(): void {
+    this.currentUser = { name: '', email: '' };
+    this.isEditing = false;
+  }
+
+  // Delete a user
+  deleteUser(id: number): void {
+    this.userService.deleteUser(id).subscribe(() => {
+      this.users = this.users.filter((user) => user.id !== id);
+    });
+  }
+}
+
+//src/app/user/user.component.html
+<div class="container">
+  <h2>User CRUD App</h2>
+
+  <!-- User Form -->
+  <div *ngIf="isEditing">
+    <h3>Edit User</h3>
+  </div>
+  <div *ngIf="!isEditing">
+    <h3>Create New User</h3>
+  </div>
+
+  <form (ngSubmit)="isEditing ? updateUser() : addUser()">
+    <div>
+      <input
+        type="text"
+        [(ngModel)]="currentUser.name"
+        name="name"
+        placeholder="Name"
+        required
+      />
+    </div>
+    <div>
+      <input
+        type="email"
+        [(ngModel)]="currentUser.email"
+        name="email"
+        placeholder="Email"
+        required
+      />
+    </div>
+    <div>
+      <button type="submit">{{ isEditing ? 'Update User' : 'Add User' }}</button>
+      <button type="button" *ngIf="isEditing" (click)="cancelEdit()">Cancel</button>
+    </div>
+  </form>
+
+  <!-- Users List -->
+  <h3>Users List</h3>
+  <ul>
+    <li *ngFor="let user of users">
+      <span>{{ user.name }} - {{ user.email }}</span>
+      <button (click)="editUser(user)">Edit</button>
+      <button (click)="deleteUser(user.id)">Delete</button>
+    </li>
+  </ul>
+</div>
+
+// Modifythe app.module.ts
+import { NgModule } from '@angular/core';
+import { BrowserModule } from '@angular/platform-browser';
+import { HttpClientModule } from '@angular/common/http';
+import { FormsModule } from '@angular/forms'; // For Two-way binding with ngModel
+
+import { AppComponent } from './app.component';
+import { UserComponent } from './user/user.component';
+
+@NgModule({
+  declarations: [AppComponent, UserComponent],
+  imports: [BrowserModule, HttpClientModule, FormsModule],
+  providers: [],
+  bootstrap: [AppComponent],
+})
+export class AppModule {}
+
